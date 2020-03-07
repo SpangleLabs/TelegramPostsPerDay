@@ -14,14 +14,8 @@ config = {
 }
 
 
-async def iter_channel_messages(client, channel_handle: str):
-    channel_entity = await client.get_entity(channel_handle)
-    async for message in client.iter_messages(channel_entity):
-        yield message
 
-
-async def get_message_count(client, channel_handle):
-    chat_entity = await client.get_entity(channel_handle)
+async def get_message_count(client, chat_entity):
     get_history = GetHistoryRequest(
         peer=chat_entity,
         offset_id=0,
@@ -47,34 +41,51 @@ def new_day_data():
     }
 
 
+def get_user_name(user):
+    return (user.first_name or "") + ("" if user.last_name is None else " " + user.last_name)
+
+
+def add_message_to_data(data, message):
+    date = message.date.date().isoformat()
+    data["posts_by_date"][date]["total"] += 1
+    data["posts_by_date"][date]["by_user"][message.sender.id] += 1
+    if message.sender.id not in data["users"]:
+        data["users"][message.sender.id] = {
+            "name": get_user_name(message.sender),
+            "username": message.sender.username,
+            "id": message.sender.id
+        }
+    if not message.text and not message.media:
+        if isinstance(message.action, MessageActionChatDeleteUser):
+            data["membership_changes"][date].append({
+                "action": "User left",
+                "user_id": message.sender.id
+            })
+        elif isinstance(message.action, MessageActionChatAddUser):
+            data["membership_changes"][date].append({
+                "action": "User joined",
+                "user_id": message.sender.id
+            })
+
+
 async def parse_messages(client, chat_handle):
     data = {
-        "by_date": defaultdict(new_day_data),
-        "membership_changes": defaultdict(lambda: [])
+        "chat": None,
+        "users": {},
+        "membership_changes": defaultdict(lambda: []),
+        "posts_by_date": defaultdict(new_day_data)
     }
-    count = await get_message_count(client, chat_handle)
+    chat_entity = await client.get_entity(chat_handle)
+    chat_name = chat_entity.title if hasattr(chat_entity, "title") else get_user_name(chat_entity)
+    data["chat"] = {
+        "id": chat_entity.id,
+        "title": chat_name
+    }
+    count = await get_message_count(client, chat_entity)
     data["count"] = count
     with tqdm(total=count) as bar:
-        async for message in iter_channel_messages(client, chat_handle):
-            date = message.date.date().isoformat()
-            data["by_date"][date]["total"] += 1
-            data["by_date"][date]["by_user"][message.sender.id] += 1
-            if not message.text and not message.media:
-                user = {
-                    "name": (message.sender.first_name or "") + " " + (message.sender.last_name or ""),
-                    "username": message.sender.username,
-                    "id": message.sender.id
-                }
-                if isinstance(message.action, MessageActionChatDeleteUser):
-                    data["membership_changes"][date].append({
-                        "action": "User left",
-                        "user": user
-                    })
-                elif isinstance(message.action, MessageActionChatAddUser):
-                    data["membership_changes"][date].append({
-                        "action": "User joined",
-                        "user": user
-                    })
+        async for message in client.iter_messages(chat_entity):
+            add_message_to_data(data, message)
             bar.update(1)
     return data
 
