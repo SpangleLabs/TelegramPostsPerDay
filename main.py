@@ -61,7 +61,7 @@ async def parse_messages(client, chat_handle):
             data["by_date"][date]["by_user"][message.sender.id] += 1
             if not message.text and not message.media:
                 user = {
-                    "name": message.sender.first_name or "" + " " + message.sender.last_name or "",
+                    "name": (message.sender.first_name or "") + " " + (message.sender.last_name or ""),
                     "username": message.sender.username,
                     "id": message.sender.id
                 }
