@@ -1,4 +1,5 @@
-from typing import Callable
+import json
+from collections import defaultdict
 
 import telethon
 
@@ -15,14 +16,22 @@ async def iter_channel_messages(client, channel_handle: str):
         yield message
 
 
-def run(conf):
+async def parse_messages(client, chat_handle):
     data = {
-        "by_date": {},
-        "membership_changes": []
+        "by_date": defaultdict(lambda: 0)
     }
+    async for message in iter_channel_messages(client, chat_handle):
+        date = message.date.date().isoformat()
+        data["by_date"][date] += 1
+    return data
+
+
+def run(conf):
     client = telethon.TelegramClient('post_counter', conf["api_id"], conf["api_hash"])
-    async for message in iter_channel_messages(client, conf["chat_handle"]):
-        print(message)
+    client.start()
+    data = client.loop.run_until_complete(parse_messages(client, conf["chat_handle"]))
+    with open("output.json", "w") as f:
+        json.dump(data, f, indent=2)
 
 
 if __name__ == "__main__":
