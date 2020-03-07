@@ -75,7 +75,7 @@ def run(conf):
     client = telethon.TelegramClient('post_counter', conf["api_id"], conf["api_hash"])
     client.start()
     data = client.loop.run_until_complete(parse_messages(client, conf["chat_handle"]))
-    with open("output.json", "w") as f:
+    with open(f"output-{conf['chat_handle']}.json", "w") as f:
         json.dump(data, f, indent=2)
 
 
