@@ -49,6 +49,7 @@ def add_message_to_data(data, message):
     date = message.date.date().isoformat()
     data["posts_by_date"][date]["total"] += 1
     data["posts_by_date"][date]["by_user"][message.sender.id] += 1
+    data["total_by_user"][message.sender.id] += 1
     if message.sender.id not in data["users"]:
         data["users"][message.sender.id] = {
             "name": get_user_name(message.sender),
@@ -69,20 +70,20 @@ def add_message_to_data(data, message):
 
 
 async def parse_messages(client, chat_handle):
-    data = {
-        "chat": None,
-        "users": {},
-        "membership_changes": defaultdict(lambda: []),
-        "posts_by_date": defaultdict(new_day_data)
-    }
     chat_entity = await client.get_entity(chat_handle)
     chat_name = chat_entity.title if hasattr(chat_entity, "title") else get_user_name(chat_entity)
-    data["chat"] = {
-        "id": chat_entity.id,
-        "title": chat_name
-    }
     count = await get_message_count(client, chat_entity)
-    data["count"] = count
+    data = {
+        "chat": {
+            "id": chat_entity.id,
+            "title": chat_name
+        },
+        "users": {},
+        "membership_changes": defaultdict(lambda: []),
+        "posts_by_date": defaultdict(new_day_data),
+        "total_count": count,
+        "total_by_user": defaultdict(lambda: 0)
+    }
     with tqdm(total=count) as bar:
         async for message in client.iter_messages(chat_entity):
             add_message_to_data(data, message)
