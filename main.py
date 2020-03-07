@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import telethon
 from telethon.tl.functions.messages import GetHistoryRequest
+from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddUser
 from telethon.tl.types.messages import Messages
 from tqdm import tqdm
 
@@ -41,7 +42,8 @@ async def get_message_count(client, channel_handle):
 
 async def parse_messages(client, chat_handle):
     data = {
-        "by_date": defaultdict(lambda: 0)
+        "by_date": defaultdict(lambda: 0),
+        "membership_changes": defaultdict(lambda: [])
     }
     count = await get_message_count(client, chat_handle)
     data["count"] = count
@@ -49,6 +51,22 @@ async def parse_messages(client, chat_handle):
         async for message in iter_channel_messages(client, chat_handle):
             date = message.date.date().isoformat()
             data["by_date"][date] += 1
+            if not message.text and not message.media:
+                user = {
+                    "name": message.sender.first_name + " " + message.sender.last_name,
+                    "username": message.sender.username,
+                    "id": message.sender.id
+                }
+                if isinstance(message.action, MessageActionChatDeleteUser):
+                    data["membership_changes"][date].append({
+                        "action": "User left",
+                        "user": user
+                    })
+                elif isinstance(message.action, MessageActionChatAddUser):
+                    data["membership_changes"][date].append({
+                        "action": "User joined",
+                        "user": user
+                    })
             bar.update(1)
     return data
 
