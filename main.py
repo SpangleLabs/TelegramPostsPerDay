@@ -40,9 +40,16 @@ async def get_message_count(client, channel_handle):
     return count
 
 
+def new_day_data():
+    return {
+        "total": 0,
+        "by_user": defaultdict(lambda: 0)
+    }
+
+
 async def parse_messages(client, chat_handle):
     data = {
-        "by_date": defaultdict(lambda: 0),
+        "by_date": defaultdict(new_day_data),
         "membership_changes": defaultdict(lambda: [])
     }
     count = await get_message_count(client, chat_handle)
@@ -50,7 +57,8 @@ async def parse_messages(client, chat_handle):
     with tqdm(total=count) as bar:
         async for message in iter_channel_messages(client, chat_handle):
             date = message.date.date().isoformat()
-            data["by_date"][date] += 1
+            data["by_date"][date]["total"] += 1
+            data["by_date"][date]["by_user"][message.sender.id] += 1
             if not message.text and not message.media:
                 user = {
                     "name": message.sender.first_name or "" + " " + message.sender.last_name or "",
