@@ -16,9 +16,10 @@ async def iter_channel_messages(client, channel_handle: str):
 
 
 def run(conf):
-    data = {}
-    data["by_date"] = {}
-    data["membership_changes"] = []
+    data = {
+        "by_date": {},
+        "membership_changes": []
+    }
     client = telethon.TelegramClient('post_counter', conf["api_id"], conf["api_hash"])
     async for message in iter_channel_messages(client, conf["chat_handle"]):
         print(message)
