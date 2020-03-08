@@ -38,20 +38,26 @@ def get_user_name(user):
     return full_name.replace(" ", "_")
 
 
+def add_user_to_data(data, user):
+    data["users"][user.id] = get_user_name(user)
+
+
 def add_message_to_log(data, message, log_name):
+    add_user_to_data(data, message.sender)
     date = message.date.date().isoformat()
     time = message.date.time().isoformat()
     log_lines = []
+    user_name = get_user_name(message.sender)
     if isinstance(message.action, MessageActionChatDeleteUser):
-        log_lines = [f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has quit [Left chat]"]
+        log_lines = [f"{time} -!- {user_name} [~{message.sender.id}@Telegram] has quit [Left chat]"]
     elif isinstance(message.action, MessageActionChatAddUser):
-        log_lines = [f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has joined {log_name}"]
+        log_lines = [f"{time} -!- {user_name} [~{message.sender.id}@Telegram] has joined {log_name}"]
     elif message.text:
-        log_lines = [f"{time} < {get_user_name(message.sender)}> {text}" for text in message.text.split("\n")[::-1]]
+        log_lines = [f"{time} < {user_name}> {text}" for text in message.text.split("\n")[::-1]]
     elif message.media and isinstance(message.media, MessageMediaDocument):
-        log_lines = [f"{time} * {get_user_name(message.sender)} sent a document ID={message.media.document.id}"]
+        log_lines = [f"{time} * {user_name} sent a document ID={message.media.document.id}"]
     elif message.media and isinstance(message.media, MessageMediaPhoto):
-        log_lines = [f"{time} * {get_user_name(message.sender)} sent a photo ID={message.media.photo.id}"]
+        log_lines = [f"{time} * {user_name} sent a photo ID={message.media.photo.id}"]
     data["log_by_date"][date] += log_lines
 
 
@@ -80,14 +86,17 @@ async def parse_messages(client, chat_handle):
     log_name = f"#{chat_entity.title}" if hasattr(chat_entity, "title") else (get_user_name(chat_entity) or chat_entity.id)
     count = await get_message_count(client, chat_entity)
     data = {
-        "log_by_date": defaultdict(lambda: [])
+        "log_by_date": defaultdict(lambda: []),
+        "users": defaultdict(lambda: {})
     }
     last_date = last_date_for_log(log_name)
+    # Harvest data
     with tqdm(total=count) as bar:
         async for message in client.iter_messages(chat_entity):
             if last_date is None or message.date.date() > last_date:
                 add_message_to_log(data, message, log_name)
             bar.update(1)
+    # Write log files
     for log_date_str, log in data["log_by_date"].items():
         log_date = dateutil.parser.parse(log_date_str)
         file_contents = [
@@ -95,11 +104,20 @@ async def parse_messages(client, chat_handle):
             *log[::-1]
         ]
         if log_date.date() != datetime.date.today():
-            file_contents.append("--- Log closed " + (log_date + datetime.timedelta(1)).strftime("%a %b %d 00:00:00 %Y"))
+            next_date = log_date + datetime.timedelta(days=1)
+            file_contents.append("--- Log closed " + next_date.strftime("%a %b %d 00:00:00 %Y"))
         os.makedirs(f"irclogs/{log_date.year}", exist_ok=True)
         file_name = get_file_name(log_name, log_date)
         with open(file_name, "w", encoding="utf-8") as f:
             f.write("\n".join(file_contents))
+    # Download profile photos
+    users_cfg = []
+    os.makedirs("pisg_output/user_pics/", exist_ok=True)
+    for user_id, user_name in data["users"].items():
+        await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
+        users_cfg.append(f"<user nick=\"{user_name}\" pic=\"user_pics/{user_id}.png\">")
+    with open("users.cfg", "w") as f:
+        f.write("\n".join(users_cfg))
 
 
 def run(conf):
