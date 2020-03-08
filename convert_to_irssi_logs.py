@@ -40,17 +40,16 @@ def get_user_name(user):
 def add_message_to_log(data, message, log_name):
     date = message.date.date().isoformat()
     time = message.date.time().isoformat()
-    log_line = None
+    log_lines = []
     if isinstance(message.action, MessageActionChatDeleteUser):
-        log_line = f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has quit [Left chat]"
+        log_lines = [f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has quit [Left chat]"]
     elif isinstance(message.action, MessageActionChatAddUser):
-        log_line = f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has joined {log_name}"
+        log_lines = [f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has joined {log_name}"]
     elif message.text:
-        log_line = f"{time} < {get_user_name(message.sender)}> {message.text}"
+        log_lines = [f"{time} < {get_user_name(message.sender)}> {text}" for text in message.text.split("\n")[::-1]]
     elif message.media:
-        log_line = f"{time} * {get_user_name(message.sender)} sent a picture {str(message.media)[:70]}..."
-    if log_line is not None:
-        data["log_by_date"][date].append(log_line)
+        log_lines = [f"{time} * {get_user_name(message.sender)} sent a picture {str(message.media)[:70]}..."]
+    data["log_by_date"][date] += log_lines
 
 
 def get_file_name(log_name, log_date):
