@@ -8,13 +8,6 @@ from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddU
 from telethon.tl.types.messages import Messages
 from tqdm import tqdm
 
-config = {
-    "api_id": "",
-    "api_hash": "",
-    "chat_handle": ""
-}
-
-
 
 async def get_message_count(client, chat_entity):
     get_history = GetHistoryRequest(
@@ -102,4 +95,7 @@ def run(conf):
 
 
 if __name__ == "__main__":
+    with open("config.json", "r") as conf_file:
+        config = json.load(conf_file)
+    config["chat_handle"] = input("Enter chat handle: ")
     run(config)
