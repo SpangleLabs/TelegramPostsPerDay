@@ -65,9 +65,10 @@ async def parse_messages(client, chat_handle):
         pydate = dateutil.parser.parse(log_date)
         file_contents = [
             "--- Log opened " + pydate.strftime("%a %b %d 00:00:00 %Y"),
-            *log[::-1],
-            "--- Log closed " + (pydate + datetime.timedelta(1)).strftime("%a %b %d 00:00:00 %Y")
+            *log[::-1]
         ]
+        if pydate.date() != datetime.date.today():
+            file_contents.append("--- Log closed " + (pydate + datetime.timedelta(1)).strftime("%a %b %d 00:00:00 %Y"))
         os.makedirs(f"irclogs/{pydate.year}", exist_ok=True)
         file_name = f"irclogs/{pydate.year}/{log_name}.{pydate.strftime('%m-%d')}.log"
         with open(file_name, "w", encoding="utf-8") as f:
