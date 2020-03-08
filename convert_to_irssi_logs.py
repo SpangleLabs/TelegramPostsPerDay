@@ -84,5 +84,9 @@ def run(conf):
 if __name__ == "__main__":
     with open("config.json", "r") as conf_file:
         config = json.load(conf_file)
-    config["chat_handle"] = input("Enter chat handle: ")
+    handle = input("Enter chat handle: ")
+    try:
+        config["chat_handle"] = int(handle)
+    except ValueError:
+        config["chat_handle"] = handle
     run(config)
