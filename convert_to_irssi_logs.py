@@ -53,6 +53,26 @@ def add_message_to_log(data, message, log_name):
         data["log_by_date"][date].append(log_line)
 
 
+def get_file_name(log_name, log_date):
+    return f"irclogs/{log_date.year}/{log_name}.{log_date.strftime('%m-%d')}.log"
+
+
+def last_date_for_log(log_name):
+    today = datetime.date.today()
+    limit = 100
+    for x in range(limit):
+        log_date = today - datetime.timedelta(days=x)
+        file_name = get_file_name(log_name, log_date)
+        try:
+            with open(file_name, "r") as f:
+                last_line = f.readlines()[-1]
+                if last_line.startswith("--- Log closed"):
+                    return log_date
+        except FileNotFoundError:
+            continue
+    return None
+
+
 async def parse_messages(client, chat_handle):
     chat_entity = await client.get_entity(chat_handle)
     log_name = f"#{chat_entity.title}" if hasattr(chat_entity, "title") else (get_user_name(chat_entity) or chat_entity.id)
@@ -60,20 +80,22 @@ async def parse_messages(client, chat_handle):
     data = {
         "log_by_date": defaultdict(lambda: [])
     }
+    last_date = last_date_for_log(log_name)
     with tqdm(total=count) as bar:
         async for message in client.iter_messages(chat_entity):
-            add_message_to_log(data, message, log_name)
+            if last_date is None or message.date.date() > last_date:
+                add_message_to_log(data, message, log_name)
             bar.update(1)
-    for log_date, log in data["log_by_date"].items():
-        pydate = dateutil.parser.parse(log_date)
+    for log_date_str, log in data["log_by_date"].items():
+        log_date = dateutil.parser.parse(log_date_str)
         file_contents = [
-            "--- Log opened " + pydate.strftime("%a %b %d 00:00:00 %Y"),
+            "--- Log opened " + log_date.strftime("%a %b %d 00:00:00 %Y"),
             *log[::-1]
         ]
-        if pydate.date() != datetime.date.today():
-            file_contents.append("--- Log closed " + (pydate + datetime.timedelta(1)).strftime("%a %b %d 00:00:00 %Y"))
-        os.makedirs(f"irclogs/{pydate.year}", exist_ok=True)
-        file_name = f"irclogs/{pydate.year}/{log_name}.{pydate.strftime('%m-%d')}.log"
+        if log_date.date() != datetime.date.today():
+            file_contents.append("--- Log closed " + (log_date + datetime.timedelta(1)).strftime("%a %b %d 00:00:00 %Y"))
+        os.makedirs(f"irclogs/{log_date.year}", exist_ok=True)
+        file_name = get_file_name(log_name, log_date)
         with open(file_name, "w", encoding="utf-8") as f:
             f.write("\n".join(file_contents))
 
