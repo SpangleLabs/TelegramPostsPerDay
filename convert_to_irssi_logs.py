@@ -6,7 +6,8 @@ from collections import defaultdict
 import telethon
 import dateutil.parser
 from telethon.tl.functions.messages import GetHistoryRequest
-from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddUser
+from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddUser, MessageMediaDocument, \
+    MessageMediaPhoto
 from telethon.tl.types.messages import Messages
 from tqdm import tqdm
 
@@ -47,8 +48,10 @@ def add_message_to_log(data, message, log_name):
         log_lines = [f"{time} -!- {get_user_name(message.sender)} [~{message.sender.id}@Telegram] has joined {log_name}"]
     elif message.text:
         log_lines = [f"{time} < {get_user_name(message.sender)}> {text}" for text in message.text.split("\n")[::-1]]
-    elif message.media:
-        log_lines = [f"{time} * {get_user_name(message.sender)} sent a picture {str(message.media)[:70]}..."]
+    elif message.media and isinstance(message.media, MessageMediaDocument):
+        log_lines = [f"{time} * {get_user_name(message.sender)} sent a document ID={message.media.document.id}"]
+    elif message.media and isinstance(message.media, MessageMediaPhoto):
+        log_lines = [f"{time} * {get_user_name(message.sender)} sent a photo ID={message.media.photo.id}"]
     data["log_by_date"][date] += log_lines
 
 
