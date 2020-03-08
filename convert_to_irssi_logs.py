@@ -31,7 +31,10 @@ async def get_message_count(client, chat_entity):
 
 
 def get_user_name(user):
-    return (user.first_name or "") + ("" if user.last_name is None else " " + user.last_name)
+    full_name = (user.first_name or "") + ("" if user.last_name is None else " " + user.last_name)
+    if full_name == "":
+        return "DELETED_ACCOUNT"
+    return full_name.replace(" ", "_")
 
 
 def add_message_to_log(data, message, log_name):
