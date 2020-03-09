@@ -57,7 +57,7 @@ class DataStore:
 
     async def write_all_logs(self, client):
         user_id_lookup = {
-            user_id: get_user_name(await client.get_entity(user_id))
+            user_id: get_user_name_unique_deleted(await client.get_entity(user_id))
             for user_id in self.user_ids
         }
         for chat_log in self.chat_logs:
@@ -72,6 +72,9 @@ class DataStore:
             user_name = get_user_name(await client.get_entity(user_id))
             pic = await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
             user_data = self.user_extra_data.get(str(user_id), {})
+            if user_name == "DELETED_USER":
+                if "alias" not in user_data:
+                    user_data["alias"] = get_user_name_unique_deleted(await client.get_entity(user_id))
             if "nick" not in user_data:
                 user_data["nick"] = user_name
             if "pic" not in user_data and pic is not None:
@@ -295,6 +298,14 @@ def get_user_name(user):
     if full_name == "":
         return "DELETED_ACCOUNT"
     return full_name.replace(" ", "_")
+
+
+def get_user_name_unique_deleted(user):
+    full_name = (user.first_name or "") + ("" if user.last_name is None else " " + user.last_name)
+    if full_name == "":
+        return f"DELETED_ACCOUNT{user.id}"
+    return full_name.replace(" ", "_")
+
 
 
 def get_file_name(log_name, log_date):
