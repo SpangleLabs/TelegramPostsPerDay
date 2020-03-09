@@ -111,7 +111,7 @@ def get_chat_name(entity):
         return get_user_name(entity) or str(entity.id)
 
 
-async def get_message_count(client, entity):
+async def get_message_count(client, entity, latest_id=0):
     get_history = GetHistoryRequest(
         peer=entity,
         offset_id=0,
@@ -119,7 +119,7 @@ async def get_message_count(client, entity):
         add_offset=0,
         limit=1,
         max_id=0,
-        min_id=0,
+        min_id=latest_id or 0,
         hash=0
     )
     history = await client(get_history)
@@ -146,10 +146,10 @@ class ChatLog:
 
     async def scrape_messages(self, client):
         entity = await client.get_entity(self.handle)
-        count = await get_message_count(client, entity)
+        count = await get_message_count(client, entity, self.last_message_id)
         chat_name = get_chat_name(entity)
         latest_id = None
-        print(f"Updating {chat_name} logs")
+        print(f"- Updating {chat_name} logs")
         with tqdm(total=count) as bar:
             async for message in client.iter_messages(entity):
                 if latest_id is None:
@@ -161,7 +161,6 @@ class ChatLog:
                 else:
                     self.add_entries(LogEntry.entries_from_message(message, chat_name))
                 bar.update(1)
-            bar.update(count)
         self.last_message_id = latest_id
 
     def save_to_json(self):
