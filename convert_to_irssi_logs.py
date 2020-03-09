@@ -47,8 +47,7 @@ class DataStore:
             user_ids = set(data.get("user_ids", []))
             user_extra_data = data.get("user_extra_data", {})
         except FileNotFoundError:
-            handle_input = input("Enter chat handle(s): ")
-            handles = [try_int(handle) for handle in handle_input.split(",")]
+            handles = []
             user_ids = set()
             user_extra_data = {}
         data_store = cls(handles, user_ids)
