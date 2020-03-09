@@ -18,7 +18,7 @@ class DataStore:
     def __init__(self, chat_handles: Optional[List] = None, user_ids: Optional[Set] = None):
         self.chat_handles = chat_handles or []
         self.user_ids = user_ids or set()
-        self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in tqdm(self.chat_handles)]
+        self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in self.chat_handles]
         self.user_extra_data = {}
 
     def save_to_json(self):
@@ -182,6 +182,7 @@ class ChatLog:
 
     @classmethod
     def load_from_json(cls, chat_handle):
+        print(f"- Loading chat ID: {chat_handle}")
         file_name = f"irclogs_cache/{chat_handle}.json"
         chat_log = cls(chat_handle)
         try:
@@ -191,7 +192,7 @@ class ChatLog:
             return chat_log
         chat_log.last_message_id = data["last_message_id"]
         chat_log.user_ids = set(data["user_ids"])
-        for log_date, log_entries in data["log_entries"].items():
+        for log_date, log_entries in tqdm(data["log_entries"].items()):
             chat_log.log_entries[log_date] = [LogEntry.from_json(log_entry) for log_entry in log_entries]
         return chat_log
 
