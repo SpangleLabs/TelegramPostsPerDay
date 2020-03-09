@@ -60,7 +60,7 @@ class DataStore:
             user_id: get_user_name_unique_deleted(await client.get_entity(user_id))
             for user_id in self.user_ids
         }
-        for chat_log in self.chat_logs:
+        for chat_log in tqdm(self.chat_logs):
             chat_entity = await client.get_entity(chat_log.handle)
             chat_name = get_chat_name(chat_entity)
             chat_log.write_log_files(user_id_lookup, chat_name)
