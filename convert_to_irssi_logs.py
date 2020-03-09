@@ -72,8 +72,10 @@ class DataStore:
             user_name = get_user_name(await client.get_entity(user_id))
             await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
             user_data = self.user_extra_data.get(str(user_id), {})
-            user_data["nick"] = user_name
-            user_data["pic"] = f"user_pics/{user_id}.png"
+            if "nick" not in user_data:
+                user_data["nick"] = user_name
+            if "pic" not in user_data:
+                user_data["pic"] = f"user_pics/{user_id}.png"
             user_line = "<user " + " ".join(f"{key}=\"{value}\"" for key, value in user_data.items()) + ">"
             users_cfg.append(user_line)
         with open("users.cfg", "w", encoding="utf-8") as f:
