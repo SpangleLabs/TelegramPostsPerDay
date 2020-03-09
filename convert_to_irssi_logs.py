@@ -63,7 +63,7 @@ class DataStore:
     async def write_users_cfg(self, client):
         users_cfg = []
         os.makedirs("pisg_output/user_pics/", exist_ok=True)
-        for user_id in self.user_ids:
+        for user_id in tqdm(self.user_ids):
             user_name = get_user_name(await client.get_entity(user_id))
             await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
             users_cfg.append(f"<user nick=\"{user_name}\" pic=\"user_pics/{user_id}.png\">")
