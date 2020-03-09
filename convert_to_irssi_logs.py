@@ -289,11 +289,17 @@ def get_file_name(log_name, log_date):
 
 
 async def update_data(client):
+    print("Loading data store")
     data_store = DataStore.load_from_json()
+    print("Updating logs")
     await data_store.update_all_logs(client)
+    print("Saving data store")
     data_store.save_to_json()
+    print("Writing logs")
     await data_store.write_all_logs(client)
+    print("Writing users config")
     await data_store.write_users_cfg(client)
+    print("Writing channel config")
     await data_store.write_channel_cfg(client)
 
 
