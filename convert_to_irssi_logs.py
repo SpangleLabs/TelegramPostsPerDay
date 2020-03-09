@@ -149,6 +149,7 @@ class ChatLog:
         count = await get_message_count(client, entity)
         chat_name = get_chat_name(entity)
         latest_id = None
+        print(f"Updating {chat_name} logs")
         with tqdm(total=count) as bar:
             async for message in client.iter_messages(entity):
                 if latest_id is None:
