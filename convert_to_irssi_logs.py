@@ -68,15 +68,20 @@ class DataStore:
     async def write_users_cfg(self, client):
         users_cfg = []
         os.makedirs("pisg_output/user_pics/", exist_ok=True)
+        deleted_account_count = 0
         for user_id in tqdm(self.user_ids):
             user_name = get_user_name(await client.get_entity(user_id))
             pic = await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
             user_data = self.user_extra_data.get(str(user_id), {})
             if user_name == "DELETED_ACCOUNT":
+                deleted_account_count += 1
                 if "alias" not in user_data:
                     user_data["alias"] = get_user_name_unique_deleted(await client.get_entity(user_id))
-            if "nick" not in user_data:
-                user_data["nick"] = user_name
+                if "nick" not in user_data:
+                    user_data["nick"] = f"{user_name}{deleted_account_count}"
+            else:
+                if "nick" not in user_data:
+                    user_data["nick"] = user_name
             if "pic" not in user_data and pic is not None:
                 user_data["pic"] = f"user_pics/{user_id}.png"
             user_line = "<user " + " ".join(f"{key}=\"{value}\"" for key, value in user_data.items()) + ">"
