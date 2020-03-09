@@ -4,19 +4,19 @@ Originally this project was supposed to be a simple tool to generate some statis
 But then I decided that this problem is already solved by [pisg](http://pisg.sourceforge.net/), and wrote a tool to convert telegram chats to IRC (specifically irssi) style logs.
 
 ## Running it
-- Create a `config.json` file, like so:
-```
-{
-    "api_id": 000,
-    "api_hash": "abcd1234"
-}
-```
-You will need to get your api ID and hash from https://my.telegram.org/apps
-- Run `python3 convert_to_irssi_logs.py`
-  - From there, it will ask for your phone number to log you in, and you'll get a telegram auth code sent to you.
-  - Then, on your first time running it, it will ask which chats you want to generate logs for.
-  - (On future runs, you can pass the "skip" argument to skip these questions. i.e. `python3 convert_to_irssi_logs.py skip`)
-- Run `pisg` to generate the pretty output files, which will appear in the `pisg_output/` directory
+1. Create a `config.json` file, like so:
+    ```
+    {
+        "api_id": 000,
+        "api_hash": "abcd1234"
+    }
+    ```
+   - You will need to get your api ID and hash from https://my.telegram.org/apps
+2. Run `python3 convert_to_irssi_logs.py`
+   - From there, it will ask for your phone number to log you in, and you'll get a telegram auth code sent to you.
+   - Then, on your first time running it, it will ask which chats you want to generate logs for.
+   - (On future runs, you can pass the "skip" argument to skip these questions. i.e. `python3 convert_to_irssi_logs.py skip`)
+3. Run `pisg` to generate the pretty output files, which will appear in the `pisg_output/` directory
 
 Hints and tips:
 - You can add your own pisg config to the pisg.cfg file.
