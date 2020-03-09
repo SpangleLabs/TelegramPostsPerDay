@@ -117,6 +117,7 @@ class ChatLog:
         self.handle = handle
         self.log_entries = defaultdict(lambda: [])  # type: Dict[str, List[LogEntry]]
         self.user_ids = set()  # type: Set[int]
+        self.last_message_id = None
 
     def add_entries(self, log_entries: List["LogEntry"]):
         if log_entries is None:
@@ -124,24 +125,24 @@ class ChatLog:
         for log_entry in log_entries:
             self.log_entries[log_entry.log_datetime.date().isoformat()].append(log_entry)
 
-    def get_last_full_day(self) -> Optional[datetime.date]:
-        dates = [dateutil.parser.parse(log_date).date() for log_date in self.log_entries.keys()]
-        dates.sort()
-        if len(dates) > 1:
-            return dates[-2]
-        return None
-
     async def scrape_messages(self, client):
         entity = await client.get_entity(self.handle)
         count = await get_message_count(client, entity)
-        last_date = self.get_last_full_day()
         chat_name = get_chat_name(entity)
+        latest_id = None
         with tqdm(total=count) as bar:
             async for message in client.iter_messages(entity):
+                if latest_id is None:
+                    latest_id = message.id
                 self.user_ids.add(message.sender.id)
-                if last_date is None or message.date.date() > last_date:
+                if self.last_message_id is not None and message.id < self.last_message_id:
+                    print(f"- Caught up on {chat_name}")
+                    break
+                else:
                     self.add_entries(LogEntry.entries_from_message(message, chat_name))
                 bar.update(1)
+            bar.update(count)
+        self.last_message_id = latest_id
 
     def save_to_json(self):
         os.makedirs("irclogs_cache", exist_ok=True)
@@ -149,10 +150,10 @@ class ChatLog:
         data = {
             "chat_handle": self.handle,
             "user_ids": list(self.user_ids),
+            "last_message_id": self.last_message_id,
             "log_entries": {
                 date: [
                     entry.to_json()
-                    for date in self.log_entries.keys()
                     for entry in self.log_entries[date]
                 ] for date in self.log_entries.keys()
             }
@@ -169,6 +170,7 @@ class ChatLog:
                 data = json.load(f)
         except FileNotFoundError:
             return chat_log
+        chat_log.last_message_id = data["last_message_id"]
         chat_log.user_ids = set(data["user_ids"])
         for log_date, log_entries in data["log_entries"].items():
             chat_log.log_entries[log_date] = [LogEntry.from_json(log_entry) for log_entry in log_entries]
