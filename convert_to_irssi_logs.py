@@ -19,14 +19,16 @@ class DataStore:
         self.chat_handles = chat_handles or []
         self.user_ids = user_ids or set()
         self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in self.chat_handles]
+        self.user_extra_data = {}
 
     def save_to_json(self):
         os.makedirs("irclogs_cache", exist_ok=True)
         with open("irclogs_cache/data_store.json", "w", encoding="utf-8") as f:
             json.dump({
                 "chat_handles": self.chat_handles,
-                "user_ids": list(self.user_ids)
-            }, f)
+                "user_ids": list(self.user_ids),
+                "user_extra_data": self.user_extra_data
+            }, f, indent=2)
         for chat_log in self.chat_logs:
             chat_log.save_to_json()
 
@@ -37,11 +39,14 @@ class DataStore:
                 data = json.load(f)
             handles = data.get("chat_handles")
             user_ids = set(data.get("user_ids", []))
+            user_extra_data = data.get("user_extra_data", {})
         except FileNotFoundError:
             handle_input = input("Enter chat handle(s): ")
             handles = [try_int(handle) for handle in handle_input.split(",")]
             user_ids = set()
+            user_extra_data = {}
         data_store = cls(handles, user_ids)
+        data_store.user_extra_data = user_extra_data
         return data_store
 
     async def update_all_logs(self, client):
@@ -66,7 +71,11 @@ class DataStore:
         for user_id in tqdm(self.user_ids):
             user_name = get_user_name(await client.get_entity(user_id))
             await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
-            users_cfg.append(f"<user nick=\"{user_name}\" pic=\"user_pics/{user_id}.png\">")
+            user_data = self.user_extra_data.get(str(user_id), {})
+            user_data["nick"] = user_name
+            user_data["pic"] = f"user_pics/{user_id}.png"
+            user_line = "<user " + " ".join(f"{key}=\"{value}\"" for key, value in user_data.items()) + ">"
+            users_cfg.append(user_line)
         with open("users.cfg", "w", encoding="utf-8") as f:
             f.write("\n".join(users_cfg))
 
