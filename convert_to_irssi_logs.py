@@ -1,6 +1,8 @@
+import asyncio
 import datetime
 import json
 import os
+import sys
 from collections import defaultdict
 from typing import Optional, List, Set, Dict
 
@@ -8,7 +10,7 @@ import telethon
 import dateutil.parser
 from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddUser, MessageMediaDocument, \
-    MessageMediaPhoto
+    MessageMediaPhoto, InputPeerChannel
 from telethon.tl.types.messages import Messages
 from tqdm import tqdm
 
@@ -20,6 +22,10 @@ class DataStore:
         self.user_ids = user_ids or set()
         self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in self.chat_handles]
         self.user_extra_data = {}
+
+    def add_chat(self, chat_handle):
+        self.chat_handles.append(chat_handle)
+        self.chat_logs.append(ChatLog.load_from_json(chat_handle))
 
     def save_to_json(self):
         os.makedirs("irclogs_cache", exist_ok=True)
@@ -313,14 +319,46 @@ def get_user_name_unique_deleted(user):
     return full_name.replace(" ", "_")
 
 
-
 def get_file_name(log_name, log_date):
     return f"irclogs/{log_date.year}/{log_name}.{log_date.strftime('%m-%d')}.log"
 
 
-async def update_data(client):
+async def add_channel(data_store, client):
+    print("- Listing new chat options:")
+    dialogs = await client.get_dialogs()
+    entities = [chan for chan in dialogs if isinstance(chan.input_entity, InputPeerChannel) and chan.entity.megagroup]
+    chat_options = [{"id": entity.id, "name": get_chat_name(entity.entity)} for entity in entities]
+    for option in range(len(chat_options)):
+        print(f"- {option}: {chat_options[option]['name']}")
+    selected_option = input("- Please enter the number for the channel you wish to add: ")
+    if selected_option in ["", "n", "skip"]:
+        print("- Aborting channel add")
+        return False
+    chat_option = chat_options[int(selected_option)]
+    data_store.add_chat(chat_option["id"])
+    print(f"- Added chat: {chat_option['name']}")
+    more_channels = input("Would you like to add any more new chats? [n]: ")
+    return more_channels.lower().strip() in ["yes", "y"]
+
+
+async def ask_questions(data_store, client):
+    chat_entities = await asyncio.gather(*(client.get_entity(chat_log.handle) for chat_log in data_store.chat_logs))
+    chat_names = [get_chat_name(entity) for entity in chat_entities]
+    print("- Currently generating stats for these channels: " + ", ".join(chat_names))
+    more_channels = input("Would you like to add any new chats? [n]: ")
+    if more_channels.lower().strip() not in ["yes", "y"]:
+        return
+    adding_channel = True
+    while adding_channel:
+        adding_channel = await add_channel(data_store, client)
+    print(" - Finished adding new chats")
+
+
+async def update_data(client, skip_questions):
     print("Loading data store")
     data_store = DataStore.load_from_json()
+    if not skip_questions:
+        await ask_questions(data_store, client)
     print("Updating logs")
     await data_store.update_all_logs(client)
     print("Saving data store")
@@ -333,13 +371,13 @@ async def update_data(client):
     await data_store.write_channel_cfg(client)
 
 
-def run(conf):
+def run(conf, skip_questions):
     client = telethon.TelegramClient('log_converter', conf["api_id"], conf["api_hash"])
     client.start()
-    client.loop.run_until_complete(update_data(client))
+    client.loop.run_until_complete(update_data(client, skip_questions))
 
 
 if __name__ == "__main__":
     with open("config.json", "r") as conf_file:
         config = json.load(conf_file)
-    run(config)
+    run(config, "skip" in sys.argv)
