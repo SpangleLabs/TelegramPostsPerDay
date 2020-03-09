@@ -72,7 +72,7 @@ class DataStore:
             user_name = get_user_name(await client.get_entity(user_id))
             pic = await client.download_profile_photo(user_id, f"pisg_output/user_pics/{user_id}.png")
             user_data = self.user_extra_data.get(str(user_id), {})
-            if user_name == "DELETED_USER":
+            if user_name == "DELETED_ACCOUNT":
                 if "alias" not in user_data:
                     user_data["alias"] = get_user_name_unique_deleted(await client.get_entity(user_id))
             if "nick" not in user_data:
