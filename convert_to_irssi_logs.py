@@ -18,7 +18,7 @@ class DataStore:
     def __init__(self, chat_handles: Optional[List] = None, user_ids: Optional[Set] = None):
         self.chat_handles = chat_handles or []
         self.user_ids = user_ids or set()
-        self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in self.chat_handles]
+        self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in tqdm(self.chat_handles)]
         self.user_extra_data = {}
 
     def save_to_json(self):
