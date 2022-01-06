@@ -4,7 +4,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-from typing import Optional, List, Set, Dict
+from typing import Optional, List, Set, Dict, Union
 
 import telethon
 import dateutil.parser
@@ -175,15 +175,10 @@ class ChatLog:
             "chat_handle": self.handle,
             "user_ids": list(self.user_ids),
             "last_message_id": self.last_message_id,
-            "log_entries": {
-                date: [
-                    entry.to_json()
-                    for entry in self.log_entries[date]
-                ] for date in self.log_entries.keys()
-            }
+            "log_entries": self.log_entries
         }
         with open(file_name, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+            json.dump(data, f, default=encode_log_entry)
 
     @classmethod
     def load_from_json(cls, chat_handle):
@@ -192,13 +187,12 @@ class ChatLog:
         chat_log = cls(chat_handle)
         try:
             with open(file_name, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                data = json.load(f, object_hook=decode_log_entry)
         except FileNotFoundError:
             return chat_log
         chat_log.last_message_id = data["last_message_id"]
         chat_log.user_ids = set(data["user_ids"])
-        for log_date, log_entries in tqdm(data["log_entries"].items()):
-            chat_log.log_entries[log_date] = [LogEntry.from_json(log_entry) for log_entry in log_entries]
+        chat_log.log_entries = data["log_entries"]
         return chat_log
 
     def write_log_files(self, user_id_lookup, chat_name):
@@ -215,6 +209,18 @@ class ChatLog:
             file_name = get_file_name(chat_name, log_date)
             with open(file_name, "w", encoding="utf-8") as f:
                 f.write("\n".join(file_contents))
+
+
+def decode_log_entry(data: Dict) -> Union["LogEntry", Dict]:
+    if all(key in data for key in ["datetime", "entry_type", "user_id", "text"]):
+        return LogEntry.from_json(data)
+    return data
+
+
+def encode_log_entry(obj):
+    if isinstance(obj, LogEntry):
+        return obj.to_json()
+    raise TypeError(f"{obj} is not JSON serializable")
 
 
 class LogEntry:
