@@ -6,6 +6,7 @@ import sys
 from collections import defaultdict
 from typing import Optional, List, Set, Dict, Union
 
+import sqlalchemy
 import telethon
 import dateutil.parser
 from telethon.tl.functions.messages import GetHistoryRequest
@@ -13,6 +14,37 @@ from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddU
     MessageMediaPhoto, InputPeerChannel
 from telethon.tl.types.messages import Messages
 from tqdm import tqdm
+
+
+class Database:
+    def __init__(self, db_str: str) -> None:
+        self.engine = sqlalchemy.create_engine(db_str)
+        self.conn = self.engine.connect()
+        self.metadata = sqlalchemy.MetaData()
+        self.chat_logs = sqlalchemy.Table(
+            "telepisg_chat_logs",
+            self.metadata,
+            sqlalchemy.Column("chat_handle", sqlalchemy.String(), nullable=False, primary_key=True),
+            sqlalchemy.Column("last_message_id", sqlalchemy.Integer())
+        )
+        self.log_entries = sqlalchemy.Table(
+            "telepisg_log_entries",
+            self.metadata,
+            sqlalchemy.Column(
+                "chat_handle",
+                sqlalchemy.String(),
+                sqlalchemy.ForeignKey(
+                    "telepisg_chat_logs.chat_handle",
+                    ondelete="CASCADE"
+                ),
+                nullable=False
+            ),
+            sqlalchemy.Column("datatime", sqlalchemy.DateTime()),
+            sqlalchemy.Column("log_type", sqlalchemy.String()),
+            sqlalchemy.Column("user_id", sqlalchemy.Integer()),
+            sqlalchemy.Column("text", sqlalchemy.Text())
+        )
+        self.metadata.create_all(self.engine)
 
 
 class DataStore:
