@@ -39,8 +39,8 @@ class Database:
                 ),
                 nullable=False
             ),
-            sqlalchemy.Column("datatime", sqlalchemy.DateTime()),
-            sqlalchemy.Column("log_type", sqlalchemy.String()),
+            sqlalchemy.Column("datetime", sqlalchemy.DateTime()),
+            sqlalchemy.Column("entry_type", sqlalchemy.String()),
             sqlalchemy.Column("user_id", sqlalchemy.Integer()),
             sqlalchemy.Column("text", sqlalchemy.Text())
         )
