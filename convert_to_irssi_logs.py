@@ -3,11 +3,10 @@ import datetime
 import json
 import os
 import sys
-from typing import Optional, List, Set, Dict, Union
+from typing import Optional, List, Set, Dict
 
 import sqlalchemy
 import telethon
-import dateutil.parser
 from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.types import MessageActionChatDeleteUser, MessageActionChatAddUser, MessageMediaDocument, \
     MessageMediaPhoto, InputPeerChannel
@@ -41,7 +40,10 @@ class Database:
             sqlalchemy.Column("datetime", sqlalchemy.DateTime()),
             sqlalchemy.Column("entry_type", sqlalchemy.String()),
             sqlalchemy.Column("user_id", sqlalchemy.Integer()),
-            sqlalchemy.Column("text", sqlalchemy.Text())
+            sqlalchemy.Column("message_id", sqlalchemy.Integer()),
+            sqlalchemy.Column("sub_message_id", sqlalchemy.Integer()),
+            sqlalchemy.Column("text", sqlalchemy.Text()),
+            sqlalchemy.UniqueConstraint("chat_handle", "message_id", "sub_message_id")
         )
         self.metadata.create_all(self.engine)
 
@@ -90,7 +92,8 @@ class Database:
         ).where(
             sqlalchemy.and_(*conditions)
         ).order_by(
-            sqlalchemy.asc(self.log_entries.columns.datetime)
+            sqlalchemy.asc(self.log_entries.columns.message_id),
+            sqlalchemy.asc(self.log_entries.columns.sub_message_id)
         )
         result = self.conn.execute(query)
         return [
@@ -311,46 +314,27 @@ class ChatLog:
                 f.write("\n".join(file_contents))
 
 
-def decode_log_entry(data: Dict) -> Union["LogEntry", Dict]:
-    if all(key in data for key in ["datetime", "entry_type", "user_id", "text"]):
-        return LogEntry.from_json(data)
-    return data
-
-
-def encode_log_entry(obj):
-    if isinstance(obj, LogEntry):
-        return obj.to_json()
-    raise TypeError(f"{obj} is not JSON serializable")
-
-
 class LogEntry:
     TYPE_TEXT = "TEXT"
     TYPE_JOIN = "JOIN"
     TYPE_QUIT = "QUIT"
     TYPE_ACTION = "ACTION"
 
-    def __init__(self, log_datetime, log_type, user_id, text):
+    def __init__(
+            self,
+            log_datetime: datetime.datetime,
+            log_type: str,
+            user_id: int,
+            text: str,
+            message_id: int,
+            sub_message_id: int
+    ):
         self.log_datetime = log_datetime
         self.log_type = log_type
         self.user_id = user_id
         self.text = text
-
-    def to_json(self):
-        return {
-            "datetime": self.log_datetime.isoformat(),
-            "entry_type": self.log_type,
-            "user_id": self.user_id,
-            "text": self.text
-        }
-
-    @staticmethod
-    def from_json(data):
-        return LogEntry(
-            dateutil.parser.parse(data["datetime"]),
-            data["entry_type"],
-            data["user_id"],
-            data["text"]
-        )
+        self.message_id = message_id
+        self.sub_message_id = sub_message_id
 
     def to_row(self, chat_handle: str) -> Dict:
         return {
@@ -358,7 +342,9 @@ class LogEntry:
             "datetime": self.log_datetime,
             "entry_type": self.log_type,
             "user_id": self.user_id,
-            "text": self.text
+            "text": self.text,
+            "message_id": self.message_id,
+            "sub_message_id": self.sub_message_id
         }
 
     @staticmethod
@@ -367,7 +353,9 @@ class LogEntry:
             row.datetime,
             row.entry_type,
             row.user_id,
-            row.text
+            row.text,
+            row.message_id,
+            row.sub_message_id
         )
 
     @classmethod
@@ -377,35 +365,45 @@ class LogEntry:
                 message.date,
                 cls.TYPE_QUIT,
                 message.sender.id,
-                f"[~{message.sender.id}@Telegram] has quit [Left chat]"
+                f"[~{message.sender.id}@Telegram] has quit [Left chat]",
+                message.id,
+                0
             )]
         elif isinstance(message.action, MessageActionChatAddUser):
             return [LogEntry(
                 message.date,
                 cls.TYPE_JOIN,
                 message.sender.id,
-                f"[~{message.sender.id}@Telegram] has joined {log_name}"
+                f"[~{message.sender.id}@Telegram] has joined {log_name}",
+                message.id,
+                0
             )]
         elif message.text:
             return [LogEntry(
                 message.date,
                 cls.TYPE_TEXT,
                 message.sender.id,
-                text
-            ) for text in message.text.split("\n")[::-1]]
+                text,
+                message.id,
+                sub_id
+            ) for sub_id, text in enumerate(message.text.split("\n")[::-1])]
         elif message.media and isinstance(message.media, MessageMediaDocument):
             return [LogEntry(
                 message.date,
                 cls.TYPE_ACTION,
                 message.sender.id,
-                f"sent a document ID={message.media.document.id}"
+                f"sent a document ID={message.media.document.id}",
+                message.id,
+                0
             )]
         elif message.media and isinstance(message.media, MessageMediaPhoto):
             return [LogEntry(
                 message.date,
                 cls.TYPE_ACTION,
                 message.sender.id,
-                f"sent a photo ID={message.media.photo.id}"
+                f"sent a photo ID={message.media.photo.id}",
+                message.id,
+                0
             )]
 
     def to_log_line(self, user_id_lookup):
