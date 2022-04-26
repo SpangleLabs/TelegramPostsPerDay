@@ -391,7 +391,9 @@ async def ask_questions(data_store, client):
     print(" - Finished adding new chats")
 
 
-async def update_data(client, skip_questions):
+async def update_data(client, skip_questions: bool, db_conn_str: str):
+    print("Setup database")
+    database = Database(db_conn_str)
     print("Loading data store")
     data_store = DataStore.load_from_json()
     if not skip_questions:
@@ -408,10 +410,10 @@ async def update_data(client, skip_questions):
     await data_store.write_channel_cfg(client)
 
 
-def run(conf, skip_questions):
+def run(conf: Dict, skip_questions: bool):
     client = telethon.TelegramClient('log_converter', conf["api_id"], conf["api_hash"])
     client.start()
-    client.loop.run_until_complete(update_data(client, skip_questions))
+    client.loop.run_until_complete(update_data(client, skip_questions, conf["db_conn"]))
 
 
 if __name__ == "__main__":
