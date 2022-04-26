@@ -3,7 +3,6 @@ import datetime
 import json
 import os
 import sys
-from collections import defaultdict
 from typing import Optional, List, Set, Dict, Union
 
 import sqlalchemy
@@ -145,15 +144,16 @@ class Database:
 
 class DataStore:
 
-    def __init__(self, chat_handles: Optional[List] = None, user_ids: Optional[Set] = None):
+    def __init__(self, db: Database, chat_handles: Optional[List] = None, user_ids: Optional[Set] = None):
+        self.db = db
         self.chat_handles = chat_handles or []
         self.user_ids = user_ids or set()
-        self.chat_logs = [ChatLog.load_from_json(chat_handle) for chat_handle in self.chat_handles]
+        self.chat_logs = [ChatLog.load_from_database(chat_handle, self.db) for chat_handle in self.chat_handles]
         self.user_extra_data = {}
 
     def add_chat(self, chat_handle):
         self.chat_handles.append(chat_handle)
-        self.chat_logs.append(ChatLog.load_from_json(chat_handle))
+        self.chat_logs.append(ChatLog.load_from_database(chat_handle, self.db))
 
     def save_to_json(self):
         os.makedirs("irclogs_cache", exist_ok=True)
@@ -163,11 +163,9 @@ class DataStore:
                 "user_ids": list(self.user_ids),
                 "user_extra_data": self.user_extra_data
             }, f, indent=2)
-        for chat_log in self.chat_logs:
-            chat_log.save_to_json()
 
     @classmethod
-    def load_from_json(cls):
+    def load_from_json(cls, db: Database):
         try:
             with open("irclogs_cache/data_store.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -178,14 +176,14 @@ class DataStore:
             handles = []
             user_ids = set()
             user_extra_data = {}
-        data_store = cls(handles, user_ids)
+        data_store = cls(db, handles, user_ids)
         data_store.user_extra_data = user_extra_data
         return data_store
 
     async def update_all_logs(self, client):
         for chat_log in self.chat_logs:
             await chat_log.scrape_messages(client)
-            for user_id in chat_log.user_ids:
+            for user_id in self.db.list_user_ids(chat_log.handle):
                 self.user_ids.add(user_id)
 
     async def write_all_logs(self, client):
@@ -265,17 +263,15 @@ async def get_message_count(client, entity, latest_id=0):
 
 class ChatLog:
 
-    def __init__(self, handle: str):
+    def __init__(self, handle: str, db: Database, last_message_id: Optional[int] = None):
         self.handle = handle
-        self.log_entries = defaultdict(lambda: [])  # type: Dict[str, List[LogEntry]]
-        self.user_ids = set()  # type: Set[int]
-        self.last_message_id = None
+        self.db = db
+        self.last_message_id = last_message_id
 
     def add_entries(self, log_entries: List["LogEntry"]):
         if log_entries is None:
             return
-        for log_entry in log_entries:
-            self.log_entries[log_entry.log_datetime.date().isoformat()].append(log_entry)
+        self.db.insert_log_entries(self.handle, log_entries)
 
     async def scrape_messages(self, client):
         entity = await client.get_entity(self.handle)
@@ -287,50 +283,26 @@ class ChatLog:
             async for message in client.iter_messages(entity):
                 if latest_id is None:
                     latest_id = message.id
-                self.user_ids.add(message.sender.id)
-                if self.last_message_id is not None and message.id < self.last_message_id:
+                if self.last_message_id is not None and message.id <= self.last_message_id:
                     print(f"- Caught up on {chat_name}")
                     break
                 else:
                     self.add_entries(LogEntry.entries_from_message(message, chat_name))
                 bar.update(1)
         self.last_message_id = latest_id
-
-    def save_to_json(self):
-        os.makedirs("irclogs_cache", exist_ok=True)
-        file_name = f"irclogs_cache/{self.handle}.json"
-        data = {
-            "chat_handle": self.handle,
-            "user_ids": list(self.user_ids),
-            "last_message_id": self.last_message_id,
-            "log_entries": self.log_entries
-        }
-        with open(file_name, "w", encoding="utf-8") as f:
-            json.dump(data, f, default=encode_log_entry)
+        self.db.update_chat_log(self.handle, self.last_message_id)
 
     @classmethod
-    def load_from_json(cls, chat_handle):
-        print(f"- Loading chat ID: {chat_handle}")
-        file_name = f"irclogs_cache/{chat_handle}.json"
-        chat_log = cls(chat_handle)
-        try:
-            with open(file_name, "r", encoding="utf-8") as f:
-                data = json.load(f, object_hook=decode_log_entry)
-        except FileNotFoundError:
-            return chat_log
-        chat_log.last_message_id = data["last_message_id"]
-        chat_log.user_ids = set(data["user_ids"])
-        chat_log.log_entries = data["log_entries"]
-        return chat_log
+    def load_from_database(cls, chat_handle: str, database: Database) -> "ChatLog":
+        return database.get_chat_log(chat_handle)
 
     def write_log_files(self, user_id_lookup, chat_name):
-        for log_date_str, log_entries in self.log_entries.items():
-            log_date = dateutil.parser.parse(log_date_str)
+        for log_date in self.db.list_log_dates(self.handle):
             file_contents = [
                 "--- Log opened " + log_date.strftime("%a %b %d 00:00:00 %Y"),
-                *[entry.to_log_line(user_id_lookup) for entry in log_entries[::-1]]
+                *[entry.to_log_line(user_id_lookup) for entry in self.db.list_log_entries(self.handle, log_date)]
             ]
-            if log_date.date() != datetime.date.today():
+            if log_date != datetime.date.today():
                 next_date = log_date + datetime.timedelta(days=1)
                 file_contents.append("--- Log closed " + next_date.strftime("%a %b %d 00:00:00 %Y"))
             os.makedirs(f"irclogs/{log_date.year}", exist_ok=True)
@@ -509,7 +481,7 @@ async def update_data(client, skip_questions: bool, db_conn_str: str):
     print("Setup database")
     database = Database(db_conn_str)
     print("Loading data store")
-    data_store = DataStore.load_from_json()
+    data_store = DataStore.load_from_json(database)
     if not skip_questions:
         await ask_questions(data_store, client)
     print("Updating logs")
