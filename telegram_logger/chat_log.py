@@ -4,8 +4,8 @@ from typing import Optional, List, TYPE_CHECKING
 
 from tqdm import tqdm
 
-from telegram_logger.telegram_utils import get_chat_name, get_message_count
 from telegram_logger.log_entry import LogEntry
+from telegram_logger.telegram_utils import get_chat_name, get_message_count
 
 if TYPE_CHECKING:
     from telegram_logger.database import Database
@@ -49,6 +49,7 @@ class ChatLog:
     @classmethod
     def load_from_database(cls, chat_handle: str, database: "Database") -> "ChatLog":
         return database.get_chat_log(chat_handle)
+
     def write_log_files(self, user_id_lookup, chat_name):
         for log_date in self.db.list_log_dates(self.handle):
             file_contents = [
@@ -62,5 +63,3 @@ class ChatLog:
             file_name = get_file_name(chat_name, log_date)
             with open(file_name, "w", encoding="utf-8") as f:
                 f.write("\n".join(file_contents))
-
-

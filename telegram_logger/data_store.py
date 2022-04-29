@@ -4,8 +4,8 @@ from typing import Optional, List, Set, TYPE_CHECKING
 
 from tqdm import tqdm
 
-from telegram_logger.telegram_utils import get_chat_name, get_user_name, get_user_name_unique_deleted
 from telegram_logger.chat_log import ChatLog
+from telegram_logger.telegram_utils import get_chat_name, get_user_name, get_user_name_unique_deleted
 
 if TYPE_CHECKING:
     from telegram_logger.database import Database

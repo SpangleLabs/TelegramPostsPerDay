@@ -3,8 +3,8 @@ from typing import List, Optional, Set
 
 import sqlalchemy
 
-from telegram_logger.log_entry import LogEntry
 from telegram_logger.chat_log import ChatLog
+from telegram_logger.log_entry import LogEntry
 
 
 class Database:
