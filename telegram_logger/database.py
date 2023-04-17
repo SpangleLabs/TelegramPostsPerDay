@@ -16,7 +16,7 @@ class Database:
             "telepisg_chat_logs",
             self.metadata,
             sqlalchemy.Column("chat_handle", sqlalchemy.String(), nullable=False, primary_key=True),
-            sqlalchemy.Column("last_message_id", sqlalchemy.Integer())
+            sqlalchemy.Column("last_message_id", sqlalchemy.BigInteger())
         )
         self.log_entries = sqlalchemy.Table(
             "telepisg_log_entries",
@@ -32,8 +32,8 @@ class Database:
             ),
             sqlalchemy.Column("datetime", sqlalchemy.DateTime()),
             sqlalchemy.Column("entry_type", sqlalchemy.String()),
-            sqlalchemy.Column("user_id", sqlalchemy.Integer()),
-            sqlalchemy.Column("message_id", sqlalchemy.Integer()),
+            sqlalchemy.Column("user_id", sqlalchemy.BigInteger()),
+            sqlalchemy.Column("message_id", sqlalchemy.BigInteger()),
             sqlalchemy.Column("sub_message_id", sqlalchemy.Integer()),
             sqlalchemy.Column("text", sqlalchemy.Text()),
             sqlalchemy.UniqueConstraint("chat_handle", "message_id", "sub_message_id")
