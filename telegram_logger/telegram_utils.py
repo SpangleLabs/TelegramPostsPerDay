@@ -10,6 +10,8 @@ def get_chat_name(entity):
 
 
 def get_user_name(user):
+    if hasattr(user, "title"):
+        return f"#{user.title}"
     full_name = (user.first_name or "") + ("" if user.last_name is None else " " + user.last_name)
     if full_name == "":
         return "DELETED_ACCOUNT"
@@ -36,6 +38,8 @@ async def get_message_count(client, entity, latest_id=0):
 
 
 def get_user_name_unique_deleted(user):
+    if hasattr(user, "title"):
+        return f"#{user.title}"
     full_name = (user.first_name or "") + ("" if user.last_name is None else " " + user.last_name)
     if full_name == "":
         return f"DELETED_ACCOUNT{user.id}"
